@@ -10,6 +10,7 @@ import { translations } from "../lib/translations";
 const emptyBpmn = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   id="Definitions_1"
                   targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:process id="Process_1" isExecutable="false">
@@ -36,17 +37,31 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Initialize BPMN modeler
+    // Initialize BPMN modeler with improved configuration
     const modeler = new BpmnModeler({
       container: containerRef.current,
-      keyboard: {
-        bindTo: document,
+      connectionRouting: {
+        layoutConnectionsOnCreate: true,
+        manhattan: true
       },
+      grid: {
+        visible: false
+      },
+      snapToGrid: true
     });
+    
     modelerRef.current = modeler;
 
     // Load initial diagram
-    modeler.importXML(diagram?.bpmnXml || emptyBpmn);
+    const loadDiagram = async () => {
+      try {
+        await modeler.importXML(diagram?.bpmnXml || emptyBpmn);
+      } catch (err) {
+        console.error('Error loading diagram:', err);
+      }
+    };
+    
+    loadDiagram();
 
     return () => {
       modeler.destroy();
@@ -55,7 +70,16 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
 
   useEffect(() => {
     if (!modelerRef.current || !diagram?.bpmnXml) return;
-    modelerRef.current.importXML(diagram.bpmnXml);
+    
+    const loadDiagram = async () => {
+      try {
+        await modelerRef.current.importXML(diagram.bpmnXml);
+      } catch (err) {
+        console.error('Error loading diagram:', err);
+      }
+    };
+    
+    loadDiagram();
   }, [diagram]);
 
   const handleSave = async () => {
@@ -63,12 +87,13 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
 
     try {
       const { xml } = await modelerRef.current.saveXML({ format: true });
-      const flowData = JSON.stringify(await modelerRef.current.get('canvas').getViewbox());
+      const canvas = modelerRef.current.get('canvas');
+      const viewbox = canvas.viewbox();
       
       onSave({
         ...diagram,
         bpmnXml: xml,
-        flowData,
+        flowData: JSON.stringify(viewbox),
         name: diagram?.name || 'Neues Diagramm',
         description: diagram?.description || 'Ein BPMN-Prozessdiagramm',
       });
