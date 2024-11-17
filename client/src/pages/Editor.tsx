@@ -3,7 +3,7 @@ import { Diagram } from "../../db/schema";
 import { BpmnEditor } from "../components/BpmnEditor";
 import { Toolbar } from "../components/Toolbar";
 import { ProcessOptimizer } from "../components/ProcessOptimizer";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Editor() {
@@ -11,24 +11,33 @@ export default function Editor() {
   const { data: diagrams } = useSWR<Diagram[]>("/api/diagrams");
   const { toast } = useToast();
 
-  const handleSave = async (diagram: Partial<Diagram>) => {
+  const handleSave = async (diagram: Partial<Diagram>, comment?: string) => {
     try {
       if (currentDiagram?.id) {
-        await fetch(`/api/diagrams/${currentDiagram.id}`, {
+        const response = await fetch(`/api/diagrams/${currentDiagram.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(diagram),
+          body: JSON.stringify({ ...diagram, comment }),
         });
+        const updatedDiagram = await response.json();
+        setCurrentDiagram(updatedDiagram);
+        await mutate("/api/diagrams");
+        await mutate(`/api/diagrams/${currentDiagram.id}/versions`);
+        
         toast({
           title: "Gespeichert",
           description: "Das Diagramm wurde erfolgreich gespeichert.",
         });
       } else {
-        await fetch("/api/diagrams", {
+        const response = await fetch("/api/diagrams", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(diagram),
         });
+        const newDiagram = await response.json();
+        setCurrentDiagram(newDiagram);
+        await mutate("/api/diagrams");
+        
         toast({
           title: "Erstellt",
           description: "Das neue Diagramm wurde erstellt.",
