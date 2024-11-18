@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Diagram } from "../../db/schema";
 import { translations } from "../lib/translations";
+import { useToast } from "@/hooks/use-toast";
 
 interface ToolbarProps {
   currentDiagram: Diagram | null;
@@ -20,8 +21,36 @@ export function Toolbar({
   diagrams,
   onDiagramSelect,
 }: ToolbarProps) {
+  const { toast } = useToast();
+
   const handleNew = () => {
-    onDiagramSelect(null);
+    try {
+      onDiagramSelect(null);
+    } catch (error) {
+      console.error("Error creating new diagram:", error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Erstellen eines neuen Diagramms",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDiagramSelect = (value: string) => {
+    try {
+      const selected = diagrams.find((d) => d.id.toString() === value);
+      if (!selected) {
+        throw new Error("Selected diagram not found");
+      }
+      onDiagramSelect(selected);
+    } catch (error) {
+      console.error("Error selecting diagram:", error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Auswählen des Diagramms",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -30,10 +59,7 @@ export function Toolbar({
       
       <Select
         value={currentDiagram?.id?.toString()}
-        onValueChange={(value) => {
-          const selected = diagrams.find((d) => d.id.toString() === value);
-          onDiagramSelect(selected || null);
-        }}
+        onValueChange={handleDiagramSelect}
       >
         <SelectTrigger className="w-[200px]">
           <SelectValue placeholder={translations.selectDiagram} />

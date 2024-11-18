@@ -8,42 +8,61 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function Editor() {
   const [currentDiagram, setCurrentDiagram] = useState<Diagram | null>(null);
-  const { data: diagrams } = useSWR<Diagram[]>("/api/diagrams");
+  const { data: diagrams, error: diagramsError } = useSWR<Diagram[]>("/api/diagrams");
   const { toast } = useToast();
 
   const handleSave = async (diagram: Partial<Diagram>, comment?: string) => {
     try {
+      let response;
+      let responseData;
+
       if (currentDiagram?.id) {
-        const response = await fetch(`/api/diagrams/${currentDiagram.id}`, {
+        // Update existing diagram
+        console.log("Updating diagram:", currentDiagram.id);
+        response = await fetch(`/api/diagrams/${currentDiagram.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...diagram, comment }),
         });
-        const updatedDiagram = await response.json();
-        setCurrentDiagram(updatedDiagram);
-        await mutate("/api/diagrams");
-        await mutate(`/api/diagrams/${currentDiagram.id}/versions`);
-        
-        toast({
-          title: "Gespeichert",
-          description: "Das Diagramm wurde erfolgreich gespeichert.",
-        });
       } else {
-        const response = await fetch("/api/diagrams", {
+        // Create new diagram
+        console.log("Creating new diagram");
+        response = await fetch("/api/diagrams", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(diagram),
         });
-        const newDiagram = await response.json();
-        setCurrentDiagram(newDiagram);
-        await mutate("/api/diagrams");
-        
-        toast({
-          title: "Erstellt",
-          description: "Das neue Diagramm wurde erstellt.",
-        });
       }
+
+      if (!response.ok) {
+        console.error("Save failed:", response.status, response.statusText);
+        throw new Error(`Save failed: ${response.statusText}`);
+      }
+
+      responseData = await response.json();
+      console.log("Save response:", responseData);
+
+      if (!responseData || !responseData.id) {
+        console.error("Invalid response data:", responseData);
+        throw new Error("Invalid response data");
+      }
+
+      setCurrentDiagram(responseData);
+      
+      // Invalidate caches
+      await Promise.all([
+        mutate("/api/diagrams"),
+        currentDiagram?.id && mutate(`/api/diagrams/${currentDiagram.id}/versions`),
+      ]);
+
+      toast({
+        title: currentDiagram?.id ? "Gespeichert" : "Erstellt",
+        description: currentDiagram?.id 
+          ? "Das Diagramm wurde erfolgreich gespeichert."
+          : "Das neue Diagramm wurde erstellt.",
+      });
     } catch (error) {
+      console.error("Save error:", error);
       toast({
         title: "Fehler",
         description: "Beim Speichern ist ein Fehler aufgetreten.",
@@ -51,6 +70,17 @@ export default function Editor() {
       });
     }
   };
+
+  useEffect(() => {
+    if (diagramsError) {
+      console.error("Error loading diagrams:", diagramsError);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Laden der Diagramme.",
+        variant: "destructive",
+      });
+    }
+  }, [diagramsError, toast]);
 
   return (
     <div className="flex h-screen flex-col">

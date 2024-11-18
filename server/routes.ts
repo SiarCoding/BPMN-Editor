@@ -10,9 +10,12 @@ export function registerRoutes(app: Express) {
   // Get all diagrams
   app.get("/api/diagrams", async (req, res) => {
     try {
+      console.log("Fetching all diagrams");
       const allDiagrams = await db.select().from(diagrams);
+      console.log("Found diagrams:", allDiagrams.length);
       res.json(allDiagrams);
     } catch (error) {
+      console.error("Error fetching diagrams:", error);
       res.status(500).json({ error: "Fehler beim Laden der Diagramme" });
     }
   });
@@ -20,16 +23,20 @@ export function registerRoutes(app: Express) {
   // Get single diagram
   app.get("/api/diagrams/:id", async (req, res) => {
     try {
+      console.log("Fetching diagram:", req.params.id);
       const diagram = await db
         .select()
         .from(diagrams)
         .where(eq(diagrams.id, parseInt(req.params.id)));
       if (diagram.length === 0) {
+        console.log("Diagram not found:", req.params.id);
         res.status(404).json({ error: "Diagramm nicht gefunden" });
         return;
       }
+      console.log("Found diagram:", diagram[0].id);
       res.json(diagram[0]);
     } catch (error) {
+      console.error("Error fetching diagram:", error);
       res.status(500).json({ error: "Fehler beim Laden des Diagramms" });
     }
   });
@@ -37,6 +44,7 @@ export function registerRoutes(app: Express) {
   // Create new diagram
   app.post("/api/diagrams", async (req, res) => {
     try {
+      console.log("Creating new diagram");
       const newDiagram = await db.transaction(async (tx) => {
         // Create the diagram
         const [diagram] = await tx
@@ -44,19 +52,25 @@ export function registerRoutes(app: Express) {
           .values(req.body)
           .returning();
 
+        console.log("Created diagram:", diagram.id);
+
         // Create initial version
-        await tx.insert(diagramVersions).values({
+        const [version] = await tx.insert(diagramVersions).values({
           diagramId: diagram.id,
           version: 1,
           bpmnXml: diagram.bpmnXml,
           flowData: diagram.flowData,
           comment: "Initial version",
-        });
+        }).returning();
 
+        console.log("Created initial version:", version.id);
         return diagram;
       });
+
+      console.log("Successfully created diagram and version");
       res.json(newDiagram);
     } catch (error) {
+      console.error("Error creating diagram:", error);
       res.status(500).json({ error: "Fehler beim Erstellen des Diagramms" });
     }
   });
@@ -65,6 +79,7 @@ export function registerRoutes(app: Express) {
   app.put("/api/diagrams/:id", async (req, res) => {
     try {
       const diagramId = parseInt(req.params.id);
+      console.log("Updating diagram:", diagramId);
       const { comment, ...diagramData } = req.body;
 
       const updatedDiagram = await db.transaction(async (tx) => {
@@ -74,16 +89,23 @@ export function registerRoutes(app: Express) {
           .from(diagrams)
           .where(eq(diagrams.id, diagramId));
 
+        if (!currentDiagram) {
+          throw new Error("Diagram not found");
+        }
+
         const newVersion = currentDiagram.currentVersion + 1;
+        console.log("Creating version:", newVersion);
 
         // Create new version
-        await tx.insert(diagramVersions).values({
+        const [version] = await tx.insert(diagramVersions).values({
           diagramId,
           version: newVersion,
           bpmnXml: diagramData.bpmnXml,
           flowData: diagramData.flowData,
           comment: comment || `Version ${newVersion}`,
-        });
+        }).returning();
+
+        console.log("Created version:", version.id);
 
         // Update diagram with new version
         const [updated] = await tx
@@ -96,11 +118,14 @@ export function registerRoutes(app: Express) {
           .where(eq(diagrams.id, diagramId))
           .returning();
 
+        console.log("Updated diagram:", updated.id);
         return updated;
       });
 
+      console.log("Successfully updated diagram and created new version");
       res.json(updatedDiagram);
     } catch (error) {
+      console.error("Error updating diagram:", error);
       res.status(500).json({ error: "Fehler beim Aktualisieren des Diagramms" });
     }
   });
@@ -108,13 +133,16 @@ export function registerRoutes(app: Express) {
   // Get diagram versions
   app.get("/api/diagrams/:id/versions", async (req, res) => {
     try {
+      console.log("Fetching versions for diagram:", req.params.id);
       const versions = await db
         .select()
         .from(diagramVersions)
         .where(eq(diagramVersions.diagramId, parseInt(req.params.id)))
         .orderBy(desc(diagramVersions.version));
+      console.log("Found versions:", versions.length);
       res.json(versions);
     } catch (error) {
+      console.error("Error fetching versions:", error);
       res.status(500).json({ error: "Fehler beim Laden der Versionen" });
     }
   });
@@ -122,6 +150,7 @@ export function registerRoutes(app: Express) {
   // Get specific version
   app.get("/api/diagrams/:id/versions/:version", async (req, res) => {
     try {
+      console.log("Fetching version:", req.params.version, "for diagram:", req.params.id);
       const [version] = await db
         .select()
         .from(diagramVersions)
@@ -132,11 +161,14 @@ export function registerRoutes(app: Express) {
           )
         );
       if (!version) {
+        console.log("Version not found");
         res.status(404).json({ error: "Version nicht gefunden" });
         return;
       }
+      console.log("Found version:", version.id);
       res.json(version);
     } catch (error) {
+      console.error("Error fetching version:", error);
       res.status(500).json({ error: "Fehler beim Laden der Version" });
     }
   });
@@ -144,6 +176,7 @@ export function registerRoutes(app: Express) {
   // Delete diagram
   app.delete("/api/diagrams/:id", async (req, res) => {
     try {
+      console.log("Deleting diagram:", req.params.id);
       await db.transaction(async (tx) => {
         // Delete all versions first
         await tx
@@ -155,8 +188,10 @@ export function registerRoutes(app: Express) {
           .delete(diagrams)
           .where(eq(diagrams.id, parseInt(req.params.id)));
       });
+      console.log("Successfully deleted diagram and versions");
       res.json({ success: true });
     } catch (error) {
+      console.error("Error deleting diagram:", error);
       res.status(500).json({ error: "Fehler beim Löschen des Diagramms" });
     }
   });
@@ -184,6 +219,7 @@ export function registerRoutes(app: Express) {
       const suggestions = JSON.parse(response.choices[0].message.content);
       res.json(suggestions);
     } catch (error) {
+      console.error("Error in process optimization:", error);
       res.status(500).json({ error: "Fehler bei der Prozessoptimierung" });
     }
   });
