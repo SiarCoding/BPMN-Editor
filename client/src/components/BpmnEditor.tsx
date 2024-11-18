@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -194,7 +195,7 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
               <SelectContent>
                 {versions?.map((version) => (
                   <SelectItem 
-                    key={version.version} 
+                    key={version.id} 
                     value={version.version.toString()}
                   >
                     {translations.version} {version.version}
@@ -230,6 +231,9 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{translations.saveVersion}</DialogTitle>
+            <DialogDescription>
+              {diagram?.id ? 'Speichern Sie eine neue Version des Diagramms' : 'Erstellen Sie ein neues Diagramm'}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Input

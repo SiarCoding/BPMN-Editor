@@ -18,13 +18,19 @@ export const diagramVersions = pgTable("diagram_versions", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   diagramId: integer("diagram_id")
     .notNull()
-    .references(() => diagrams.id),
+    .references(() => diagrams.id, { onDelete: 'cascade' }),
   version: integer("version").notNull(),
   bpmnXml: text("bpmn_xml").notNull(),
   flowData: jsonb("flow_data").notNull(),
   comment: text("comment"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Add a unique constraint to prevent duplicate versions for the same diagram
+export const diagramVersionConstraint = {
+  name: "unique_diagram_version",
+  columns: ["diagram_id", "version"],
+};
 
 export const insertDiagramSchema = createInsertSchema(diagrams);
 export const selectDiagramSchema = createSelectSchema(diagrams);
