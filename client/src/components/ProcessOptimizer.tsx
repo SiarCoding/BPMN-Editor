@@ -36,9 +36,10 @@ export function ProcessOptimizer({ diagram }: ProcessOptimizerProps) {
         }),
       });
       const data = await response.json();
-      setSuggestions(data.suggestions);
+      setSuggestions(data.suggestions || []);
     } catch (error) {
       console.error("Optimization error:", error);
+      setSuggestions([]);
     } finally {
       setLoading(false);
     }
@@ -53,7 +54,7 @@ export function ProcessOptimizer({ diagram }: ProcessOptimizerProps) {
         </div>
       ) : (
         <ScrollArea className="h-[calc(100%-3rem)]">
-          {suggestions.map((suggestion, index) => (
+          {(suggestions || []).map((suggestion, index) => (
             <div
               key={index}
               className={`p-3 mb-3 rounded-lg border ${

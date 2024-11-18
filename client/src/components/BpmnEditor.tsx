@@ -64,10 +64,14 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
     try {
       const modeler = new BpmnModeler({
         container: containerRef.current,
-        keyboard: {
-          bindTo: window,
-          keyboardBindings: false
-        }
+        connectionRouting: {
+          layoutConnectionsOnCreate: true,
+          manhattan: true
+        },
+        grid: {
+          visible: false
+        },
+        snapToGrid: true
       });
 
       modelerRef.current = modeler;
