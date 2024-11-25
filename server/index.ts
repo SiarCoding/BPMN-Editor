@@ -28,17 +28,16 @@ app.use(express.urlencoded({ extended: false }));
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
-  const PORT = 5000;
-  server.listen(PORT, "0.0.0.0", () => {
-    const formattedTime = new Date().toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
-    });
-
-    console.log(`${formattedTime} [express] serving on port ${PORT}`);
+  // ALWAYS serve the app on port 5001
+  const PORT = process.env.PORT || 5001;
+  server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  }).on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use. Please try a different port.`);
+      process.exit(1);
+    } else {
+      console.error('Server error:', error);
+    }
   });
 })();
