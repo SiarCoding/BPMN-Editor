@@ -6,7 +6,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Diagram } from "../../db/schema";
+import { Diagram } from "db/schema";
 import { translations } from "../lib/translations";
 import { useToast } from "@/hooks/use-toast";
 

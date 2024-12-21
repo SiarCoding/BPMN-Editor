@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Diagram, DiagramVersion } from "../../db/schema";
+import { Diagram, DiagramVersion } from "db/schema";
 import { translations } from "../lib/translations";
 import useSWR from "swr";
 
@@ -44,9 +44,10 @@ const emptyBpmn = `<?xml version="1.0" encoding="UTF-8"?>
 interface BpmnEditorProps {
   diagram: Diagram | null;
   onSave: (diagram: Partial<Diagram>, comment?: string) => void;
+  readOnly?: boolean;
 }
 
-export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
+export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const modelerRef = useRef<any>(null);
   const [showVersionDialog, setShowVersionDialog] = useState(false);
@@ -181,7 +182,7 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
     <div className="flex-1 h-full flex flex-col relative">
       <div className="p-4 border-b flex justify-between items-center">
         <div className="flex items-center gap-4">
-          {diagram && versions?.length > 0 && (
+        {diagram && versions && versions.length > 0 && (
             <Select
               value={selectedVersion}
               onValueChange={(value) => {
@@ -211,7 +212,7 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
         </div>
         <Button 
           onClick={() => setShowVersionDialog(true)} 
-          disabled={loading}
+          disabled={loading || readOnly}
         >
           {translations.save}
         </Button>
@@ -241,7 +242,7 @@ export function BpmnEditor({ diagram, onSave }: BpmnEditorProps) {
               value={comment}
               onChange={(e) => setComment(e.target.value)}
             />
-            <Button onClick={handleSave} disabled={loading}>
+            <Button onClick={handleSave} disabled={loading || readOnly}>
               {translations.save}
             </Button>
           </div>

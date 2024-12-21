@@ -133,17 +133,29 @@ export function registerRoutes(app: Express) {
   // Get diagram versions
   app.get("/api/diagrams/:id/versions", async (req, res) => {
     try {
-      console.log("Fetching versions for diagram:", req.params.id);
+      const diagramId = parseInt(req.params.id);
+      console.log("Fetching versions for diagram:", diagramId);
+      
+      if (isNaN(diagramId)) {
+        return res.status(400).json({ 
+          error: "Ungültige Diagramm-ID" 
+        });
+      }
+
       const versions = await db
         .select()
         .from(diagramVersions)
-        .where(eq(diagramVersions.diagramId, parseInt(req.params.id)))
+        .where(eq(diagramVersions.diagramId, diagramId))
         .orderBy(desc(diagramVersions.version));
+
       console.log("Found versions:", versions.length);
       res.json(versions);
     } catch (error) {
       console.error("Error fetching versions:", error);
-      res.status(500).json({ error: "Fehler beim Laden der Versionen" });
+      res.status(500).json({ 
+        error: "Fehler beim Laden der Versionen",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
@@ -196,28 +208,130 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Analyze BPMN process
+  app.post("/api/analyze", async (req, res) => {
+    try {
+      const { bpmnXml } = req.body;
+
+      if (!bpmnXml) {
+        return res.status(400).json({ error: "BPMN XML ist erforderlich" });
+      }
+
+      const systemPrompt = `Du bist ein BPMN-Prozessoptimierer. Analysiere den gegebenen BPMN-Prozess und erstelle:
+1. Eine Liste von Optimierungsvorschlägen
+2. Ein optimiertes BPMN-XML, das diese Vorschläge umsetzt
+
+Berücksichtige dabei:
+- Prozesseffizienz und Durchlaufzeit
+- Ressourcennutzung
+- Automatisierungspotenzial
+- Best Practices der Prozessmodellierung
+
+Gib deine Antwort als JSON mit den Feldern 'vorschlaege' (Array von Strings) und 'optimized_bpmn' (String) zurück.`;
+
+      const userPrompt = `Hier ist der BPMN-Prozess zur Optimierung:
+
+${bpmnXml}
+
+Analysiere den Prozess und erstelle:
+1. Konkrete Optimierungsvorschläge
+2. Ein optimiertes BPMN-XML, das diese Vorschläge umsetzt
+
+Formatiere deine Antwort als valides JSON.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
+
+      const response = completion.choices[0].message.content;
+      
+      try {
+        const result = JSON.parse(response || "{}");
+        if (!result.vorschlaege || !result.optimized_bpmn) {
+          throw new Error("Ungültiges Antwortformat");
+        }
+        res.json(result);
+      } catch (error) {
+        console.error("Error parsing OpenAI response:", error);
+        res.status(500).json({ 
+          error: "Fehler beim Verarbeiten der KI-Antwort",
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
+    } catch (error) {
+      console.error("Error analyzing BPMN:", error);
+      res.status(500).json({ 
+        error: "Fehler bei der Prozessanalyse",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Get optimization suggestions
   app.post("/api/optimize", async (req, res) => {
     try {
-      const { bpmnXml, flowData } = req.body;
+      const { bpmnXml } = req.body;
       
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4",
         messages: [
           {
             role: "system",
-            content: "Du bist ein BPMN-Prozessoptimierer. Analysiere den Prozess und gib Verbesserungsvorschläge in deutscher Sprache."
+            content: `Du bist ein BPMN-Prozessoptimierer. Deine Aufgabe ist es, BPMN-Prozesse zu analysieren und zu optimieren.
+
+WICHTIG: Du kennst alle BPMN 2.0 Elemente und deren XML-Struktur:
+- Events (startEvent, endEvent, intermediateThrowEvent, intermediateCatchEvent)
+- Activities (task, userTask, serviceTask, sendTask, receiveTask)
+- Gateways (exclusiveGateway, parallelGateway, inclusiveGateway)
+- Flows (sequenceFlow, messageFlow)
+- Artifacts (textAnnotation, association)
+- Containers (process, subProcess, participant, lane)
+
+Analysiere den gegebenen BPMN-Prozess XML und:
+1. Identifiziere Optimierungspotenziale wie:
+   - Unnötige Sequenzflüsse
+   - Fehlende Parallelisierung
+   - Überflüssige Aktivitäten
+   - Komplexe Gateway-Strukturen
+   - Fehlende Error Handling
+
+2. Erstelle ein optimiertes BPMN XML das:
+   - Die identifizierten Probleme behebt
+   - Parallele Ausführung wo möglich nutzt
+   - Die Prozesslogik vereinfacht
+   - Valides BPMN 2.0 XML ist
+   - Die IDs der originalen Elemente beibehält
+
+Antworte NUR in diesem JSON-Format:
+{
+  "vorschlaege": [
+    "Liste konkreter Optimierungsvorschläge"
+  ],
+  "optimized_bpmn": "Optimiertes BPMN 2.0 XML mit allen Verbesserungen"
+}`
           },
           {
             role: "user",
-            content: JSON.stringify({ bpmnXml, flowData })
+            content: bpmnXml
           }
         ],
-        response_format: { type: "json_object" }
+        temperature: 0,
+        max_tokens: 4000
       });
 
-      const suggestions = JSON.parse(response.choices[0].message.content);
-      res.json(suggestions);
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("Keine Antwort von OpenAI erhalten");
+      }
+
+      const result = JSON.parse(content);
+      res.json(result);
     } catch (error) {
       console.error("Error in process optimization:", error);
       res.status(500).json({ error: "Fehler bei der Prozessoptimierung" });
