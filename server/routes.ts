@@ -4,7 +4,14 @@ import { diagrams, diagramVersions } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://api.openai.com/v1",
+  defaultHeaders: {
+    'OpenAI-Beta': 'project',
+    'OpenAI-Organization': process.env.OPENAI_ORG_ID || '',
+  }
+});
 
 export function registerRoutes(app: Express) {
   // Get all diagrams
