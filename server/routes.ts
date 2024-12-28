@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { diagrams, diagramVersions } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -113,7 +113,7 @@ export function registerRoutes(app: Express) {
           .set({
             ...diagramData,
             currentVersion: newVersion,
-            updatedAt: new Date(),
+            updatedAt: sql`CURRENT_TIMESTAMP`,
           })
           .where(eq(diagrams.id, diagramId))
           .returning();

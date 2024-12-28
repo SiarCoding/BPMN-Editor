@@ -1,6 +1,7 @@
 import { pgTable, text, integer, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 
 export const diagrams = pgTable("diagrams", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -11,7 +12,7 @@ export const diagrams = pgTable("diagrams", {
   optimizationSuggestions: jsonb("optimization_suggestions"),
   currentVersion: integer("current_version").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const diagramVersions = pgTable("diagram_versions", {

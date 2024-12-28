@@ -58,11 +58,13 @@ export function Toolbar({
       <Button onClick={handleNew}>{translations.new}</Button>
       
       <Select
-        value={currentDiagram?.id?.toString()}
+        value={currentDiagram?.id?.toString() || ""}
         onValueChange={handleDiagramSelect}
       >
         <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder={translations.selectDiagram} />
+          <SelectValue placeholder={translations.selectDiagram}>
+            {currentDiagram?.name || translations.selectDiagram}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {diagrams.map((diagram) => (
