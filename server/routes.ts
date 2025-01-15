@@ -4,13 +4,13 @@ import { diagrams, diagramVersions } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ 
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: "https://api.openai.com/v1",
   defaultHeaders: {
-    'OpenAI-Beta': 'project',
-    'OpenAI-Organization': process.env.OPENAI_ORG_ID || '',
-  }
+    "OpenAI-Beta": "project",
+    "OpenAI-Organization": process.env.OPENAI_ORG_ID || "",
+  },
 });
 
 export function registerRoutes(app: Express) {
@@ -54,21 +54,21 @@ export function registerRoutes(app: Express) {
       console.log("Creating new diagram");
       const newDiagram = await db.transaction(async (tx) => {
         // Create the diagram
-        const [diagram] = await tx
-          .insert(diagrams)
-          .values(req.body)
-          .returning();
+        const [diagram] = await tx.insert(diagrams).values(req.body).returning();
 
         console.log("Created diagram:", diagram.id);
 
         // Create initial version
-        const [version] = await tx.insert(diagramVersions).values({
-          diagramId: diagram.id,
-          version: 1,
-          bpmnXml: diagram.bpmnXml,
-          flowData: diagram.flowData,
-          comment: "Initial version",
-        }).returning();
+        const [version] = await tx
+          .insert(diagramVersions)
+          .values({
+            diagramId: diagram.id,
+            version: 1,
+            bpmnXml: diagram.bpmnXml,
+            flowData: diagram.flowData,
+            comment: "Initial version",
+          })
+          .returning();
 
         console.log("Created initial version:", version.id);
         return diagram;
@@ -104,13 +104,16 @@ export function registerRoutes(app: Express) {
         console.log("Creating version:", newVersion);
 
         // Create new version
-        const [version] = await tx.insert(diagramVersions).values({
-          diagramId,
-          version: newVersion,
-          bpmnXml: diagramData.bpmnXml,
-          flowData: diagramData.flowData,
-          comment: comment || `Version ${newVersion}`,
-        }).returning();
+        const [version] = await tx
+          .insert(diagramVersions)
+          .values({
+            diagramId,
+            version: newVersion,
+            bpmnXml: diagramData.bpmnXml,
+            flowData: diagramData.flowData,
+            comment: comment || `Version ${newVersion}`,
+          })
+          .returning();
 
         console.log("Created version:", version.id);
 
@@ -133,7 +136,9 @@ export function registerRoutes(app: Express) {
       res.json(updatedDiagram);
     } catch (error) {
       console.error("Error updating diagram:", error);
-      res.status(500).json({ error: "Fehler beim Aktualisieren des Diagramms" });
+      res
+        .status(500)
+        .json({ error: "Fehler beim Aktualisieren des Diagramms" });
     }
   });
 
@@ -142,10 +147,10 @@ export function registerRoutes(app: Express) {
     try {
       const diagramId = parseInt(req.params.id);
       console.log("Fetching versions for diagram:", diagramId);
-      
+
       if (isNaN(diagramId)) {
-        return res.status(400).json({ 
-          error: "Ungültige Diagramm-ID" 
+        return res.status(400).json({
+          error: "Ungültige Diagramm-ID",
         });
       }
 
@@ -159,9 +164,9 @@ export function registerRoutes(app: Express) {
       res.json(versions);
     } catch (error) {
       console.error("Error fetching versions:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Fehler beim Laden der Versionen",
-        details: error instanceof Error ? error.message : String(error)
+        details: error instanceof Error ? error.message : String(error),
       });
     }
   });
@@ -169,7 +174,12 @@ export function registerRoutes(app: Express) {
   // Get specific version
   app.get("/api/diagrams/:id/versions/:version", async (req, res) => {
     try {
-      console.log("Fetching version:", req.params.version, "for diagram:", req.params.id);
+      console.log(
+        "Fetching version:",
+        req.params.version,
+        "for diagram:",
+        req.params.id
+      );
       const [version] = await db
         .select()
         .from(diagramVersions)
@@ -188,7 +198,9 @@ export function registerRoutes(app: Express) {
       res.json(version);
     } catch (error) {
       console.error("Error fetching version:", error);
-      res.status(500).json({ error: "Fehler beim Laden der Version" });
+      res
+        .status(500)
+        .json({ error: "Fehler beim Laden der Version" });
     }
   });
 
@@ -201,7 +213,7 @@ export function registerRoutes(app: Express) {
         await tx
           .delete(diagramVersions)
           .where(eq(diagramVersions.diagramId, parseInt(req.params.id)));
-        
+
         // Then delete the diagram
         await tx
           .delete(diagrams)
@@ -250,14 +262,14 @@ Formatiere deine Antwort als valides JSON.`;
         model: "gpt-4",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
+          { role: "user", content: userPrompt },
         ],
         temperature: 0.7,
         max_tokens: 4000,
       });
 
       const response = completion.choices[0].message.content;
-      
+
       try {
         const result = JSON.parse(response || "{}");
         if (!result.vorschlaege || !result.optimized_bpmn) {
@@ -266,26 +278,34 @@ Formatiere deine Antwort als valides JSON.`;
         res.json(result);
       } catch (error) {
         console.error("Error parsing OpenAI response:", error);
-        res.status(500).json({ 
+        res.status(500).json({
           error: "Fehler beim Verarbeiten der KI-Antwort",
-          details: error instanceof Error ? error.message : String(error)
+          details: error instanceof Error ? error.message : String(error),
         });
       }
     } catch (error) {
       console.error("Error analyzing BPMN:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Fehler bei der Prozessanalyse",
-        details: error instanceof Error ? error.message : String(error)
+        details: error instanceof Error ? error.message : String(error),
       });
     }
   });
 
-  // Get optimization suggestions
+  // Optimize BPMN process
   app.post("/api/optimize", async (req, res) => {
     try {
       const { bpmnXml } = req.body;
-      
-      const response = await openai.chat.completions.create({
+
+      if (!bpmnXml || typeof bpmnXml !== "string") {
+        return res.status(400).json({
+          error: "Ungültiger BPMN XML Input",
+          details: "BPMN XML muss als String übergeben werden",
+        });
+      }
+
+      console.log("Starting OpenAI optimization request");
+      const completion = await openai.chat.completions.create({
         model: "gpt-4",
         messages: [
           {
@@ -308,40 +328,127 @@ Analysiere den gegebenen BPMN-Prozess XML und:
    - Komplexe Gateway-Strukturen
    - Fehlende Error Handling
 
-2. Erstelle ein optimiertes BPMN XML das:
-   - Die identifizierten Probleme behebt
-   - Parallele Ausführung wo möglich nutzt
-   - Die Prozesslogik vereinfacht
-   - Valides BPMN 2.0 XML ist
-   - Die IDs der originalen Elemente beibehält
+Evaluationskriterien:
+  Berücksichtigen Sie bei der Analyse eines Geschäftsprozesses folgende Kriterien:
+    1. Effizienz: Minimieren Sie Durchlaufzeiten und verbessern Sie den Ablauf zwischen Prozessschritten.
+    2. Genauigkeit: Reduzieren Sie Fehler und Inkonsistenzen im Prozess.
+    3. Stakeholder-Zufriedenheit: Optimieren Sie die Erfahrung und Zufriedenheit interner (Mitarbeiter) und externer Stakeholder (Kunden, Partner).
+    4. Anpassungsfähigkeit: Gestalten Sie den Prozess flexibel und widerstandsfähig gegenüber Veränderungen.
+    5. Wertschöpfung: Priorisieren Sie Aktivitäten, die zur Wertschöpfung beitragen, und eliminieren Sie nicht-wertschöpfende Tätigkeiten.
 
-Antworte NUR in diesem JSON-Format:
+Optimierungsrichtlinien:
+  Nutzen Sie diese Prinzipien, um konkrete Verbesserungen vorzuschlagen:
+    1. Klare Ziele definieren: Fokus auf messbare Ergebnisse wie Kostensenkung, Qualitätssteigerung oder Durchlaufzeitverkürzung.
+    2. Stakeholder-Fokus: Berücksichtigen Sie die Erwartungen und Bedürfnisse aller Prozessbeteiligten.
+    3. Nicht-wertschöpfende Tätigkeiten eliminieren: Identifizieren und beseitigen Sie Redundanzen, Verzögerungen und überflüssige Schritte.
+    4. Technologische Lösungen nutzen: Schlagen Sie spezifische Systeme vor, z. B. Onlineformulare, ERP-Systeme, RPA, Chatbots oder andere Technologien, die Prozesse automatisieren und parallele Abläufe ermöglichen.
+    5. Kommunikation verbessern: Fördern Sie transparente, zeitnahe und klare Kommunikation zwischen allen Beteiligten.
+    6. Kosten-Nutzen-Verhältnis beachten: Optimierungen sollten die Kosten nicht übersteigen und einen klaren Mehrwert bieten.
+    7. Inter- und intra-departmentale Zusammenarbeit verbessern: Fördern Sie reibungslose Übergänge und Synchronisation zwischen Teams, Abteilungen und Systemen.
+    8. Reale Umsetzungsmöglichkeiten: Liefern Sie umsetzbare Vorschläge, wie spezifische Technologien oder Werkzeuge die Prozesse verbessern können. Beispiele: Einführung eines Onlineformulars zur Dateneingabe, Implementierung eines Chatbots für die Kundenkommunikation oder Nutzung eines ERP-Systems für eine bessere Datenintegration.
+
+Antworte EXAKT in diesem Format (als valides JSON):
 {
   "vorschlaege": [
-    "Liste konkreter Optimierungsvorschläge"
+    "Liste der konkreten Optimierungsvorschläge"
   ],
-  "optimized_bpmn": "Optimiertes BPMN 2.0 XML mit allen Verbesserungen"
-}`
+  "optimized_bpmn": "Vollständiges, valides BPMN 2.0 XML mit allen Optimierungen"
+}`,
           },
           {
             role: "user",
-            content: bpmnXml
-          }
+            content: `Hier ist der zu optimierende BPMN-Prozess. Behalte die XML-Struktur bei und optimiere nur den Prozessfluss. Antworte NUR mit einem validen JSON-Objekt:
+
+${bpmnXml}
+
+Erstelle ein optimiertes BPMN XML und liste die Verbesserungen auf.`,
+          },
         ],
-        temperature: 0,
-        max_tokens: 4000
+        temperature: 0.2,
+        max_tokens: 4000,
       });
 
-      const content = response.choices[0]?.message?.content;
+      console.log("Received OpenAI response");
+      const content = completion.choices[0]?.message?.content;
       if (!content) {
-        throw new Error("Keine Antwort von OpenAI erhalten");
+        console.error("No content in OpenAI response");
+        return res.status(500).json({
+          error: "Keine Antwort von OpenAI erhalten",
+          details: "Die Antwort enthielt keinen Content",
+        });
       }
 
-      const result = JSON.parse(content);
-      res.json(result);
+      try {
+        console.log("Raw OpenAI response:", content.substring(0, 200) + "...");
+        // Entferne evtl. Markdown-Formatierung
+        let cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
+        console.log("Cleaned content:", cleanContent.substring(0, 200) + "...");
+
+        let result: any;
+        try {
+          // Erster Parse-Versuch
+          result = JSON.parse(cleanContent);
+        } catch (primaryParseError) {
+          // Fallback: Suche JSON-Codeblock
+          const match = cleanContent.match(/```json\s*([\s\S]*?)\s*```/);
+          if (match && match[1]) {
+            const jsonString = match[1].trim();
+            result = JSON.parse(jsonString);
+          } else {
+            console.error("No valid JSON block found in GPT-4 response.");
+            throw primaryParseError;
+          }
+        }
+
+        // Validiere das BPMN XML
+        if (
+          !result.optimized_bpmn ||
+          !result.optimized_bpmn.includes("<?xml") ||
+          !result.optimized_bpmn.includes("bpmn:definitions")
+        ) {
+          console.error("Invalid BPMN XML in result:", result);
+          return res.status(500).json({
+            error: "Ungültiges BPMN XML",
+            details: "OpenAI hat kein valides BPMN XML generiert",
+          });
+        }
+
+        // Validiere die Vorschläge
+        if (
+          !Array.isArray(result.vorschlaege) ||
+          result.vorschlaege.length === 0
+        ) {
+          console.error("No optimization suggestions in result:", result);
+          return res.status(500).json({
+            error: "Keine Optimierungsvorschläge",
+            details: "OpenAI hat keine Verbesserungsvorschläge generiert",
+          });
+        }
+
+        // BPMN noch etwas bereinigen
+        result.optimized_bpmn = result.optimized_bpmn
+          .trim()
+          .replace(/\\n/g, "\n")
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, "\\")
+          .replace(/^\s*<\?xml/, "<?xml");
+
+        console.log("Sending optimized result");
+        res.json(result);
+      } catch (parseError) {
+        console.error("Error parsing OpenAI response:", parseError);
+        console.error("Raw content:", content);
+        res.status(500).json({
+          error: "Fehler beim Verarbeiten der KI-Antwort",
+          details: parseError instanceof Error ? parseError.message : String(parseError),
+        });
+      }
     } catch (error) {
       console.error("Error in process optimization:", error);
-      res.status(500).json({ error: "Fehler bei der Prozessoptimierung" });
+      res.status(500).json({
+        error: "Fehler bei der Prozessoptimierung",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
   });
 }

@@ -82,7 +82,31 @@ export default function Editor() {
   }, [diagramsError, toast]);
 
   const handleOptimizedDiagram = (diagram: Diagram) => {
-    setOptimizedDiagram(diagram);
+    if (!diagram?.bpmnXml) {
+      console.error('No BPMN XML in optimized diagram');
+      toast({
+        title: "Fehler",
+        description: "Optimiertes Diagramm konnte nicht geladen werden",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      // Validiere das BPMN XML
+      if (!diagram.bpmnXml.includes('<?xml') || !diagram.bpmnXml.includes('bpmn:definitions')) {
+        throw new Error("Ungültiges BPMN XML Format im optimierten Diagramm");
+      }
+      
+      setOptimizedDiagram(diagram);
+    } catch (error) {
+      console.error('Error setting optimized diagram:', error);
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Fehler beim Laden des optimierten Diagramms",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

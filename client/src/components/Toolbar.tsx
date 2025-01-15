@@ -54,26 +54,45 @@ export function Toolbar({
   };
 
   return (
-    <div className="border-b p-4 flex items-center space-x-4">
-      <Button onClick={handleNew}>{translations.new}</Button>
-      
-      <Select
-        value={currentDiagram?.id?.toString() || ""}
-        onValueChange={handleDiagramSelect}
-      >
-        <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder={translations.selectDiagram}>
-            {currentDiagram?.name || translations.selectDiagram}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {diagrams.map((diagram) => (
-            <SelectItem key={diagram.id} value={diagram.id.toString()}>
-              {diagram.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="border-b bg-white p-4 flex items-center justify-between shadow-sm">
+      <div className="flex items-center space-x-4">
+        <Button onClick={handleNew} className="min-w-[100px]">
+          {translations.new}
+        </Button>
+        
+        <Select
+          value={currentDiagram?.id?.toString() || ""}
+          onValueChange={handleDiagramSelect}
+        >
+          <SelectTrigger className="w-[250px]">
+            <SelectValue placeholder={translations.selectDiagram}>
+              {currentDiagram?.name || translations.selectDiagram}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {diagrams.map((diagram) => (
+              <SelectItem key={diagram.id} value={diagram.id.toString()}>
+                {diagram.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+  
+      <div className="flex flex-col items-end">
+        <div className="text-sm font-bold text-blue-700 tracking-wide">
+          DataX Projekt
+        </div>
+        <div className="text-base font-semibold text-blue-600">
+          AI-BPMN Process Optimizer
+        </div>
+        <div className="text-xs text-gray-500 mt-1 tracking-wide">
+          Entwickelt von 
+          <span className="font-medium ml-1">
+            Siar • Royal • Dzenita
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

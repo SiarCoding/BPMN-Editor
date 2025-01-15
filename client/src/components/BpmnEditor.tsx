@@ -56,6 +56,7 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // SWR, um Versions-Liste abzurufen
   const { data: versions } = useSWR<DiagramVersion[]>(
     diagram ? `/api/diagrams/${diagram.id}/versions` : null
   );
@@ -64,55 +65,92 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
     if (!containerRef.current || modelerRef.current) return;
 
     try {
+      console.log("Initializing BPMN modeler");
+
+      // Keyboard-Binding explizit entfernen
       const modeler = new BpmnModeler({
         container: containerRef.current,
-        connectionRouting: {
-          layoutConnectionsOnCreate: true,
-          manhattan: true
+        additionalModules: [
+          {
+            contextPadProvider: ["value", {}],
+          },
+        ],
+        moddleExtensions: {
+          camunda: {
+            name: "Camunda",
+            uri: "http://camunda.org/schema/1.0/bpmn",
+          },
         },
-        grid: {
-          visible: false
-        },
-        snapToGrid: true
       });
 
       modelerRef.current = modeler;
 
-      // Create a new empty diagram or load existing one
+      // Lade initiales BPMN (oder emptyBpmn)
       const xmlToLoad = diagram?.bpmnXml || emptyBpmn;
+      console.log("Loading initial diagram:", xmlToLoad.substring(0, 100) + "...");
       await loadDiagram(xmlToLoad);
     } catch (err) {
-      console.error('Error initializing modeler:', err);
-      setError('Fehler beim Initialisieren des Editors');
+      console.error("Error initializing modeler:", err);
+      setError("Fehler beim Initialisieren des Editors");
     }
   };
 
   const loadDiagram = async (xml: string) => {
-    if (!modelerRef.current) return;
-    
+    if (!modelerRef.current) {
+      console.error("Modeler not initialized");
+      return;
+    }
+
+    if (!xml || typeof xml !== "string") {
+      console.error("Invalid XML:", xml);
+      setError("Ungültiges BPMN-Diagramm");
+      return;
+    }
+
+    const cleanXml = xml
+      .trim()
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+
+    console.log("Loading diagram with XML length:", cleanXml.length);
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const result = await modelerRef.current.importXML(xml);
-      
-      if (result.warnings.length > 0) {
-        console.warn('Warnings while importing BPMN diagram:', result.warnings);
+      const result = await modelerRef.current.importXML(cleanXml);
+
+      if (result.warnings?.length) {
+        console.warn("Warnings while importing BPMN diagram:", result.warnings);
       }
 
-      const canvas = modelerRef.current.get('canvas');
+      const canvas = modelerRef.current.get("canvas");
       if (canvas) {
-        canvas.zoom('fit-viewport');
+        canvas.zoom("fit-viewport");
       }
     } catch (err) {
-      console.error('Error loading diagram:', err);
+      console.error("Error loading diagram:", err);
       setError(translations.error.load);
+
+      // Fallback: leeres Diagramm
+      try {
+        await modelerRef.current.importXML(emptyBpmn);
+        const canvas = modelerRef.current.get("canvas");
+        if (canvas) {
+          canvas.zoom("fit-viewport");
+        }
+      } catch (fallbackErr) {
+        console.error("Error loading empty diagram:", fallbackErr);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // Beim ersten Rendern
   useEffect(() => {
+    console.log("BpmnEditor mounted or diagram changed");
     const timer = setTimeout(() => {
       initializeModeler();
     }, 100);
@@ -120,14 +158,17 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
     return () => {
       clearTimeout(timer);
       if (modelerRef.current) {
+        console.log("Destroying BPMN modeler");
         modelerRef.current.destroy();
         modelerRef.current = null;
       }
     };
   }, []);
 
+  // Wenn sich das Diagramm ändert (bpmnXml)
   useEffect(() => {
     if (diagram?.bpmnXml && modelerRef.current) {
+      console.log("Loading new diagram (diagram changed)");
       loadDiagram(diagram.bpmnXml);
     }
   }, [diagram?.bpmnXml]);
@@ -139,21 +180,24 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
 
     try {
       const { xml } = await modelerRef.current.saveXML({ format: true });
-      const canvas = modelerRef.current.get('canvas');
+      const canvas = modelerRef.current.get("canvas");
       const viewbox = canvas ? canvas.viewbox() : null;
-      
-      await onSave({
-        ...diagram,
-        bpmnXml: xml,
-        flowData: viewbox ? JSON.stringify(viewbox) : '{}',
-        name: diagram?.name || 'Neues Diagramm',
-        description: diagram?.description || 'Ein BPMN-Prozessdiagramm',
-      }, comment);
+
+      await onSave(
+        {
+          ...diagram,
+          bpmnXml: xml,
+          flowData: viewbox ? JSON.stringify(viewbox) : "{}",
+          name: diagram?.name || "Neues Diagramm",
+          description: diagram?.description || "Ein BPMN-Prozessdiagramm",
+        },
+        comment
+      );
 
       setComment("");
       setShowVersionDialog(false);
     } catch (err) {
-      console.error('Error saving diagram:', err);
+      console.error("Error saving diagram:", err);
       setError(translations.error.save);
     } finally {
       setLoading(false);
@@ -164,14 +208,16 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/diagrams/${diagram?.id}/versions/${versionId}`);
+      const response = await fetch(
+        `/api/diagrams/${diagram?.id}/versions/${versionId}`
+      );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const version = await response.json();
       await loadDiagram(version.bpmnXml);
     } catch (err) {
-      console.error('Error loading version:', err);
+      console.error("Error loading version:", err);
       setError(translations.error.load);
     } finally {
       setLoading(false);
@@ -180,9 +226,10 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
 
   return (
     <div className="flex-1 h-full flex flex-col relative">
+      {/* Toolbar */}
       <div className="p-4 border-b flex justify-between items-center">
         <div className="flex items-center gap-4">
-        {diagram && versions && versions.length > 0 && (
+          {diagram && versions && versions.length > 0 && (
             <Select
               value={selectedVersion}
               onValueChange={(value) => {
@@ -195,33 +242,24 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
               </SelectTrigger>
               <SelectContent>
                 {versions?.map((version) => (
-                  <SelectItem 
-                    key={version.id} 
-                    value={version.version.toString()}
-                  >
+                  <SelectItem key={version.id} value={version.version.toString()}>
                     {translations.version} {version.version}
-                    {version.comment ? ` - ${version.comment}` : ''}
+                    {version.comment ? ` - ${version.comment}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
-          {error && (
-            <div className="text-red-500 text-sm">{error}</div>
-          )}
+          {error && <div className="text-red-500 text-sm">{error}</div>}
         </div>
-        <Button 
-          onClick={() => setShowVersionDialog(true)} 
-          disabled={loading || readOnly}
-        >
+        <Button onClick={() => setShowVersionDialog(true)} disabled={loading || readOnly}>
           {translations.save}
         </Button>
       </div>
-      <div 
-        ref={containerRef} 
-        className="flex-1 bpmn-editor-container"
-      />
-      
+
+      {/* BPMN Canvas */}
+      <div ref={containerRef} className="flex-1 bpmn-editor-container" />
+
       {loading && (
         <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-50">
           <div className="text-lg font-semibold">Lädt...</div>
@@ -233,7 +271,9 @@ export function BpmnEditor({ diagram, onSave, readOnly }: BpmnEditorProps) {
           <DialogHeader>
             <DialogTitle>{translations.saveVersion}</DialogTitle>
             <DialogDescription>
-              {diagram?.id ? 'Speichern Sie eine neue Version des Diagramms' : 'Erstellen Sie ein neues Diagramm'}
+              {diagram?.id
+                ? "Speichern Sie eine neue Version des Diagramms"
+                : "Erstellen Sie ein neues Diagramm"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
